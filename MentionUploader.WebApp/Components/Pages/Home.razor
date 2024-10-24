@@ -1,0 +1,96 @@
+﻿@page "/"
+@using MentionUploader.Application.Interfaces
+@rendermode InteractiveServer
+@inject IFileUploader fileUploader
+
+<PageTitle>Home</PageTitle>
+
+<h1 class="pb-3">Upload de arquivos para Mention</h1>
+
+<div class="pb-4">
+    <InputFile OnChange="HandleSelected" key="@_inputKey"/>
+    <button @onclick="UploadFile">Upload</button>
+</div>
+
+@if (_isLoading)
+{
+    <p>Carregando...</p>
+}
+@if (_errorMessage != null)
+{
+    <p style="color:red">@_errorMessage</p>
+}
+@if (_fileNames is not null && _fileNames.Count > 0)
+{
+    <h4>Arquivos no bucket</h4>
+    <ul>
+        @foreach (var file in _fileNames)
+        {
+        <li>@file</li>
+        }
+    </ul>
+}
+
+@code {
+    private string? _errorMessage;
+    private List<string> _fileNames = new List<string>();
+    private bool _isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Carregar arquivos da pasta específica ao iniciar a página
+        await ListFiles();
+    }
+
+    private async Task ListFiles()
+    {
+        try
+        {
+            _isLoading = true;
+            _errorMessage = null;
+            _fileNames = await fileUploader.ListFilesAsync(default);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Erro ao carregar arquivos: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+}
+
+@code {
+    private IBrowserFile? _selectedFile;
+    private string _inputKey = Guid.NewGuid().ToString();
+
+    private void HandleSelected(InputFileChangeEventArgs e)
+    {
+        _selectedFile = e.File;
+    }
+
+    private async Task UploadFile()
+    {
+        if (_selectedFile is not null)
+        {
+            Console.WriteLine("Iniciando o upload...");
+            try
+            {
+                var stream = _selectedFile.OpenReadStream();
+                await fileUploader.UploadFileAsync(stream, _selectedFile.Name, default);
+                await stream.DisposeAsync();
+                Console.WriteLine("Upload concluído!");
+                _selectedFile = null;
+                StateHasChanged();
+                
+                await ListFiles();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erro no upload: {ex.Message}");
+            }
+        }
+    }
+}
